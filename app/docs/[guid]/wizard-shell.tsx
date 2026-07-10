@@ -3,27 +3,21 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import type {
+  ContactRef,
   DocType,
   DocumentSession,
   WizardStep,
 } from "@/lib/document-session/types";
+import { ContactsStep } from "./contacts-step";
 import { DocumentNumberingStep } from "./document-numbering-step";
 import { DocumentTypeStep } from "./document-type-step";
 
 const STEPS: WizardStep[] = [1, 2, 3, 4, 5, 6, 7];
 
 const STEP_STUBS: Record<
-  Exclude<WizardStep, 1 | 2>,
+  Exclude<WizardStep, 1 | 2 | 3 | 4>,
   { title: string; placeholder: string }
 > = {
-  3: {
-    title: "Крок 3 — Замовник",
-    placeholder: "Тут з’являться пошук і форма контакту замовника.",
-  },
-  4: {
-    title: "Крок 4 — Виконавець",
-    placeholder: "Тут з’являться пошук і форма контакту виконавця.",
-  },
   5: {
     title: "Крок 5 — Послуги",
     placeholder: "Тут з’являться каталог послуг і рядки документа.",
@@ -50,6 +44,8 @@ function stepTitle(step: WizardStep, completed: boolean): string {
   if (completed) return "Фінальний перегляд";
   if (step === 1) return "Крок 1 — Тип документа";
   if (step === 2) return "Крок 2 — Дата та номери";
+  if (step === 3) return "Крок 3 — Замовник";
+  if (step === 4) return "Крок 4 — Виконавець";
   return STEP_STUBS[step].title;
 }
 
@@ -62,6 +58,8 @@ type Props = {
   initialDate: string;
   initialInvoiceNumber?: string;
   initialActNumber?: string;
+  initialClient?: ContactRef;
+  initialDoneBy?: ContactRef;
 };
 
 export function WizardShell({
@@ -73,10 +71,14 @@ export function WizardShell({
   initialDate,
   initialInvoiceNumber,
   initialActNumber,
+  initialClient,
+  initialDoneBy,
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>(initialStep);
   const [docType, setDocType] = useState<DocType>(initialDocType);
+  const [client, setClient] = useState<ContactRef | undefined>(initialClient);
+  const [doneBy, setDoneBy] = useState<ContactRef | undefined>(initialDoneBy);
   const [error, setError] = useState<string | null>(null);
   const [pendingCopyGuid, setPendingCopyGuid] = useState(false);
   const [dateValid, setDateValid] = useState(true);
@@ -84,10 +86,20 @@ export function WizardShell({
   const issueNumbersRef = useRef<
     (() => Promise<DocumentSession | null>) | null
   >(null);
+  const saveContactRef = useRef<
+    ((nextStep: WizardStep) => Promise<DocumentSession | null>) | null
+  >(null);
 
   const displayStep: WizardStep = completed ? 7 : step;
   const canGoBack = !completed && step > 1;
   const canGoNext = !completed && step < 7;
+
+  function applySession(session: DocumentSession) {
+    setStep(session["current-step"]);
+    setDocType(session["doc-type"]);
+    setClient(session.client);
+    setDoneBy(session["done-by"]);
+  }
 
   function navigate(next: WizardStep) {
     if (completed || isPending || next === step) return;
@@ -115,6 +127,21 @@ export function WizardShell({
         }
       }
 
+      if ((step === 3 || step === 4) && next > step) {
+        const save = saveContactRef.current;
+        if (!save) {
+          setError("Не вдалося зберегти контакт");
+          return;
+        }
+        const saved = await save(next);
+        if (!saved) {
+          return;
+        }
+        applySession(saved);
+        router.refresh();
+        return;
+      }
+
       const res = await fetch(`/api/docs/${guid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -128,14 +155,15 @@ export function WizardShell({
         return;
       }
       const session = (await res.json()) as DocumentSession;
-      setStep(session["current-step"]);
-      setDocType(session["doc-type"]);
+      applySession(session);
       router.refresh();
     });
   }
 
   function handleSessionUpdated(session: DocumentSession) {
     setDocType(session["doc-type"]);
+    setClient(session.client);
+    setDoneBy(session["done-by"]);
     router.refresh();
   }
 
@@ -223,6 +251,28 @@ export function WizardShell({
               onDateValidityChange={setDateValid}
               onIssueRequest={(issue) => {
                 issueNumbersRef.current = issue;
+              }}
+            />
+          ) : displayStep === 3 ? (
+            <ContactsStep
+              key="client"
+              guid={guid}
+              role="client"
+              initialContact={client}
+              onSessionUpdated={handleSessionUpdated}
+              onSaveRequest={(save) => {
+                saveContactRef.current = save;
+              }}
+            />
+          ) : displayStep === 4 ? (
+            <ContactsStep
+              key="done-by"
+              guid={guid}
+              role="done-by"
+              initialContact={doneBy}
+              onSessionUpdated={handleSessionUpdated}
+              onSaveRequest={(save) => {
+                saveContactRef.current = save;
               }}
             />
           ) : (

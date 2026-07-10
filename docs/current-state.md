@@ -2,12 +2,21 @@
 
 | Field | Value |
 |-------|-------|
-| Last updated | 2026-07-10T20:40:00+03:00 |
-| Last action | Archived OpenSpec change `add-document-numbering`; synced delta specs to main |
-| Current focus | Next capability: `contacts` (steps 3–4) |
-| Key decisions | Issue on step-2 «Далі» via `POST .../issue-numbers`; counters in `{data-root}/{year}/doc_number.json`; in-process year mutex + atomic replace; date PATCH on change; idempotent re-issue |
+| Last updated | 2026-07-10T20:53:00+03:00 |
+| Last action | Archived OpenSpec change `add-contacts`; synced delta specs to main |
+| Current focus | Next capability `services-catalog` (wizard step 5) |
+| Key decisions | Shared `ContactsStep` with role prop; `GET/PUT /api/contacts`; catalog then session snapshot on «Далі»; MVP inn = non-empty key (no checksum) |
 | Blockers / open questions | None |
-| Relevant paths | `lib/document-numbering/`, `app/api/docs/[guid]/issue-numbers/`, `app/docs/[guid]/document-numbering-step.tsx`, `openspec/specs/document-numbering/`, `openspec/changes/archive/2026-07-10-add-document-numbering/` |
+| Relevant paths | `lib/contacts/`, `app/api/contacts/`, `app/docs/[guid]/contacts-step.tsx`, `openspec/specs/contacts/` |
+
+## Shipped: `add-contacts` (archived)
+
+- Main specs: new `contacts`; `wizard-shell` stub requirement updated for real steps 3–4
+- Store: `lib/contacts` — `listContacts` / `getContact` / `putContact` under `{data-root}/contacts/{inn}.json`
+- API: `GET /api/contacts?q=`, `GET/PUT /api/contacts/[inn]`
+- UI: shared `ContactsStep` for steps 3 (замовник → `client`) and 4 (виконавець → `done-by`); stubs remain for 5–7
+- Covers FR-08–FR-10, NFR-05/10, BC-05, TC-11–TC-13, TC-26
+- Archive: `openspec/changes/archive/2026-07-10-add-contacts/`
 
 ## Shipped: `add-document-numbering` (archived)
 

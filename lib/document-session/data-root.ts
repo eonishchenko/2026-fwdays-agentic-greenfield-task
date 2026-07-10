@@ -15,3 +15,8 @@ export function getDataRoot(override?: string): string {
 export function getDocsDir(override?: string): string {
   return path.join(getDataRoot(override), "docs");
 }
+
+/** `{data-root}/contacts` — contact catalog JSON directory. */
+export function getContactsDir(override?: string): string {
+  return path.join(getDataRoot(override), "contacts");
+}
