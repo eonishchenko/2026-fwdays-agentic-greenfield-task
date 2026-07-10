@@ -1,0 +1,247 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
+import type {
+  DocType,
+  DocumentSession,
+  WizardStep,
+} from "@/lib/document-session/types";
+import { DocumentTypeStep } from "./document-type-step";
+
+const STEPS: WizardStep[] = [1, 2, 3, 4, 5, 6, 7];
+
+const STEP_STUBS: Record<
+  Exclude<WizardStep, 1>,
+  { title: string; placeholder: string }
+> = {
+  2: {
+    title: "Крок 2 — Дата та номери",
+    placeholder: "Тут з’являться дата документа та згенеровані номери.",
+  },
+  3: {
+    title: "Крок 3 — Замовник",
+    placeholder: "Тут з’являться пошук і форма контакту замовника.",
+  },
+  4: {
+    title: "Крок 4 — Виконавець",
+    placeholder: "Тут з’являться пошук і форма контакту виконавця.",
+  },
+  5: {
+    title: "Крок 5 — Послуги",
+    placeholder: "Тут з’являться каталог послуг і рядки документа.",
+  },
+  6: {
+    title: "Крок 6 — Перегляд",
+    placeholder: "Тут з’явиться HTML-прев’ю заповненого шаблону.",
+  },
+  7: {
+    title: "Крок 7 — Фінальний перегляд",
+    placeholder: "Тут з’являться PDF та дії редагування.",
+  },
+};
+
+type ProgressState = "past" | "current" | "future";
+
+function progressState(step: WizardStep, current: WizardStep): ProgressState {
+  if (step < current) return "past";
+  if (step === current) return "current";
+  return "future";
+}
+
+function stepTitle(step: WizardStep, completed: boolean): string {
+  if (completed) return "Фінальний перегляд";
+  if (step === 1) return "Крок 1 — Тип документа";
+  return STEP_STUBS[step].title;
+}
+
+type Props = {
+  guid: string;
+  initialStep: WizardStep;
+  completed: boolean;
+  initialDocType: DocType;
+  initialCopiedFrom?: string;
+};
+
+export function WizardShell({
+  guid,
+  initialStep,
+  completed,
+  initialDocType,
+  initialCopiedFrom,
+}: Props) {
+  const router = useRouter();
+  const [step, setStep] = useState<WizardStep>(initialStep);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingCopyGuid, setPendingCopyGuid] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const displayStep: WizardStep = completed ? 7 : step;
+  const canGoBack = !completed && step > 1;
+  const canGoNext = !completed && step < 7;
+
+  function navigate(next: WizardStep) {
+    if (completed || isPending || next === step) return;
+    if (step === 1 && next > step && pendingCopyGuid) {
+      setError(
+        "Застосуйте копіювання або очистіть поле guid перед переходом далі",
+      );
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/docs/${guid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ "current-step": next }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(data?.error ?? `Не вдалося зберегти крок (${res.status})`);
+        return;
+      }
+      const session = (await res.json()) as DocumentSession;
+      setStep(session["current-step"]);
+      router.refresh();
+    });
+  }
+
+  function handleSessionUpdated(_session: DocumentSession) {
+    router.refresh();
+  }
+
+  return (
+    <div className="wizard-shell flex min-h-full flex-1 flex-col">
+      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
+        <header className="mb-8">
+          <p
+            className="text-sm font-medium uppercase tracking-wide"
+            style={{ color: "var(--wizard-muted)" }}
+          >
+            Документ
+          </p>
+          <h1
+            className="mt-1 text-2xl font-semibold tracking-tight"
+            style={{ color: "var(--wizard-text)" }}
+          >
+            {stepTitle(displayStep, completed)}
+          </h1>
+          <p
+            className="mt-1 font-mono text-xs"
+            style={{ color: "var(--wizard-muted)" }}
+          >
+            {guid}
+          </p>
+        </header>
+
+        <nav
+          aria-label="Прогрес кроків"
+          className="mb-8 flex flex-wrap items-center justify-between gap-2"
+        >
+          {STEPS.map((n) => {
+            const state = progressState(n, displayStep);
+            return (
+              <div
+                key={n}
+                className="wizard-progress-circle"
+                data-state={state}
+                aria-current={state === "current" ? "step" : undefined}
+                aria-label={`Крок ${n}${state === "current" ? " (поточний)" : state === "past" ? " (пройдений)" : " (наступний)"}`}
+              >
+                {n}
+              </div>
+            );
+          })}
+        </nav>
+
+        <section
+          className="flex-1 rounded-[var(--wizard-radius)] border p-6"
+          style={{
+            background: "var(--wizard-surface)",
+            borderColor: "var(--wizard-border)",
+          }}
+          aria-live="polite"
+        >
+          {completed ? (
+            <>
+              <h2
+                className="text-lg font-semibold"
+                style={{ color: "var(--wizard-text)" }}
+              >
+                Фінальний перегляд
+              </h2>
+              <p className="mt-2 text-sm" style={{ color: "var(--wizard-muted)" }}>
+                Сеанс завершено. PDF та «Редагувати» з’являться з пізнішими
+                можливостями.
+              </p>
+            </>
+          ) : displayStep === 1 ? (
+            <DocumentTypeStep
+              guid={guid}
+              initialDocType={initialDocType}
+              initialCopiedFrom={initialCopiedFrom}
+              onSessionUpdated={handleSessionUpdated}
+              onCopyFieldChange={setPendingCopyGuid}
+            />
+          ) : (
+            <>
+              <h2
+                className="text-lg font-semibold"
+                style={{ color: "var(--wizard-text)" }}
+              >
+                {STEP_STUBS[displayStep].title}
+              </h2>
+              <p className="mt-2 text-sm" style={{ color: "var(--wizard-muted)" }}>
+                {STEP_STUBS[displayStep].placeholder}
+              </p>
+            </>
+          )}
+        </section>
+
+        {error ? (
+          <p className="mt-4 text-sm text-red-700" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        {!completed ? (
+          <div className="mt-8 flex items-center justify-between gap-4">
+            {canGoBack ? (
+              <button
+                type="button"
+                className="wizard-btn wizard-btn-secondary"
+                disabled={isPending}
+                onClick={() => navigate((step - 1) as WizardStep)}
+              >
+                Назад
+              </button>
+            ) : (
+              <span />
+            )}
+            {canGoNext ? (
+              <button
+                type="button"
+                className="wizard-btn wizard-btn-primary"
+                disabled={isPending}
+                onClick={() => navigate((step + 1) as WizardStep)}
+              >
+                Далі
+              </button>
+            ) : (
+              <span />
+            )}
+          </div>
+        ) : null}
+
+        <a
+          href={`/api/docs/${guid}/export`}
+          className="wizard-btn wizard-btn-secondary mt-8 w-fit"
+        >
+          Download JSON
+        </a>
+      </main>
+    </div>
+  );
+}

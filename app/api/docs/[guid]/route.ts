@@ -48,6 +48,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (error instanceof SessionNotFoundError) {
       return NextResponse.json({ error: error.message }, { status: 404 });
     }
+    if (
+      error instanceof Error &&
+      (error.message.startsWith("Invalid doc-type") ||
+        error.message.startsWith("Invalid current-step"))
+    ) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     const message =
       error instanceof Error ? error.message : "Failed to save session";
     return NextResponse.json({ error: message }, { status: 500 });

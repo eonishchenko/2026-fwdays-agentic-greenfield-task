@@ -2,7 +2,9 @@ export { getDataRoot, getDocsDir } from "./data-root";
 export { InvalidGuidError, SessionNotFoundError } from "./errors";
 export { assertValidGuid, isValidGuid, sessionPath } from "./guid";
 export {
+  copySessionFields,
   createSession,
+  isDocType,
   readSession,
   readSessionOrNull,
   updateSession,

@@ -2,16 +2,19 @@
 
 | Field | Value |
 |-------|-------|
-| Last updated | 2026-07-10T19:52:00+03:00 |
-| Last action | Archived OpenSpec change `add-document-session`; synced delta to `openspec/specs/document-session/spec.md` |
-| Current focus | Next: `wizard-shell` (progress chrome, Back/Next, persist `current-step`) |
-| Key decisions | `DATA_ROOT` default `./data` → `data/docs/{guid}.json`; kebab-case JSON; Route Handlers `POST/GET/PATCH` + `/export`; stub UI + PATCH controls until wizard-shell |
+| Last updated | 2026-07-10T20:23:00+03:00 |
+| Last action | Archived OpenSpec change `add-document-type`; synced delta specs to main |
+| Current focus | Propose/implement `document-numbering` (step 2: date + invoice/act numbers) |
+| Key decisions | Step 1 client form; PATCH for `doc-type`; `POST .../copy` + `copySessionFields`; numbers always stripped (BC-11); «Далі» blocked while copy guid field is non-empty |
 | Blockers / open questions | None |
-| Relevant paths | `lib/document-session/`, `app/api/docs/`, `app/page.tsx`, `app/docs/[guid]/`, `data/docs/`, `openspec/specs/document-session/`, `openspec/changes/archive/2026-07-10-add-document-session/` |
+| Relevant paths | `openspec/specs/document-type/spec.md`, `openspec/specs/wizard-shell/spec.md`, `openspec/changes/archive/2026-07-10-add-document-type/`, `app/docs/[guid]/document-type-step.tsx`, `app/api/docs/[guid]/copy/route.ts` |
 
-## Session contract (shipped)
+## Shipped: `add-document-type` (archived)
 
-- Create: `/` → `createSession()` → redirect `/docs/{guid}`
-- Persist: `{DATA_ROOT}/docs/{guid}.json` (gitignore `data/docs/*.json`)
-- API: `POST /api/docs`, `GET|PATCH /api/docs/[guid]`, `GET /api/docs/[guid]/export`
-- Resume: unfinished → show `current-step`; `completed` → final-review placeholder; invalid/missing → error UI, no write
+- Main specs: new `document-type`; `wizard-shell` stub requirement updated for real step 1
+- Step 1 radios + copy-from-guid; numbers omitted on copy (BC-11)
+- Archive: `openspec/changes/archive/2026-07-10-add-document-type/`
+
+## Shipped (prior)
+
+- `document-session`, `wizard-shell`, `locale-helpers` — see archive under `openspec/changes/archive/`

@@ -5,6 +5,7 @@ import { getDocsDir } from "./data-root";
 import { InvalidGuidError, SessionNotFoundError } from "./errors";
 import { assertValidGuid, sessionPath } from "./guid";
 import type {
+  DocType,
   DocumentSession,
   DocumentSessionPatch,
   WizardStep,
@@ -13,6 +14,16 @@ import type {
 export type StoreOptions = {
   dataRoot?: string;
 };
+
+const DOC_TYPES: ReadonlySet<DocType> = new Set([
+  "invoice_act",
+  "invoice",
+  "act",
+]);
+
+export function isDocType(value: unknown): value is DocType {
+  return typeof value === "string" && DOC_TYPES.has(value as DocType);
+}
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -107,6 +118,10 @@ export async function updateSession(
     throw new Error(`Invalid current-step: ${String(patch["current-step"])}`);
   }
 
+  if (patch["doc-type"] !== undefined && !isDocType(patch["doc-type"])) {
+    throw new Error(`Invalid doc-type: ${String(patch["doc-type"])}`);
+  }
+
   const next: DocumentSession = {
     ...current,
     ...patch,
@@ -115,6 +130,48 @@ export async function updateSession(
   };
 
   const filePath = sessionPath(guid, options.dataRoot);
+  await writeSessionAtomic(filePath, next);
+  return next;
+}
+
+/**
+ * Copy business fields from source into target.
+ * Omits document numbers (BC-11); preserves target guid, step, and completed.
+ */
+export async function copySessionFields(
+  targetGuid: string,
+  sourceGuid: string,
+  options: StoreOptions = {},
+): Promise<DocumentSession> {
+  assertValidGuid(targetGuid);
+  const source = await readSession(sourceGuid, options);
+  const target = await readSession(targetGuid, options);
+
+  const next: DocumentSession = {
+    ...target,
+    "doc-type": source["doc-type"],
+    date: source.date,
+    services: structuredClone(source.services),
+    "copied-from": source.guid,
+    "updated-at": nowIsoDateTime(),
+  };
+
+  if (source.client) {
+    next.client = structuredClone(source.client);
+  } else {
+    delete next.client;
+  }
+
+  if (source["done-by"]) {
+    next["done-by"] = structuredClone(source["done-by"]);
+  } else {
+    delete next["done-by"];
+  }
+
+  delete next["invoice-number"];
+  delete next["act-number"];
+
+  const filePath = sessionPath(targetGuid, options.dataRoot);
   await writeSessionAtomic(filePath, next);
   return next;
 }
