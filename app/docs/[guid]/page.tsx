@@ -72,6 +72,7 @@ export default async function DocumentSessionPage({ params }: PageProps) {
       initialActNumber={session["act-number"]}
       initialClient={session.client}
       initialDoneBy={session["done-by"]}
+      initialServices={session.services}
     />
   );
 }

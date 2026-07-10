@@ -1,4 +1,10 @@
-export { getDataRoot, getContactsDir, getDocsDir } from "./data-root";
+export {
+  getDataRoot,
+  getContactsDir,
+  getDocsDir,
+  getJobsDir,
+  getServicesCatalogPath,
+} from "./data-root";
 export { InvalidGuidError, SessionNotFoundError } from "./errors";
 export { assertValidGuid, isValidGuid, sessionPath } from "./guid";
 export {

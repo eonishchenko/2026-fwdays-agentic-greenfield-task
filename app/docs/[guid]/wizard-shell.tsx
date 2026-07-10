@@ -6,22 +6,20 @@ import type {
   ContactRef,
   DocType,
   DocumentSession,
+  ServiceLine,
   WizardStep,
 } from "@/lib/document-session/types";
 import { ContactsStep } from "./contacts-step";
 import { DocumentNumberingStep } from "./document-numbering-step";
 import { DocumentTypeStep } from "./document-type-step";
+import { ServicesStep } from "./services-step";
 
 const STEPS: WizardStep[] = [1, 2, 3, 4, 5, 6, 7];
 
 const STEP_STUBS: Record<
-  Exclude<WizardStep, 1 | 2 | 3 | 4>,
+  Exclude<WizardStep, 1 | 2 | 3 | 4 | 5>,
   { title: string; placeholder: string }
 > = {
-  5: {
-    title: "Крок 5 — Послуги",
-    placeholder: "Тут з’являться каталог послуг і рядки документа.",
-  },
   6: {
     title: "Крок 6 — Перегляд",
     placeholder: "Тут з’явиться HTML-прев’ю заповненого шаблону.",
@@ -46,6 +44,7 @@ function stepTitle(step: WizardStep, completed: boolean): string {
   if (step === 2) return "Крок 2 — Дата та номери";
   if (step === 3) return "Крок 3 — Замовник";
   if (step === 4) return "Крок 4 — Виконавець";
+  if (step === 5) return "Крок 5 — Послуги";
   return STEP_STUBS[step].title;
 }
 
@@ -60,6 +59,7 @@ type Props = {
   initialActNumber?: string;
   initialClient?: ContactRef;
   initialDoneBy?: ContactRef;
+  initialServices?: ServiceLine[];
 };
 
 export function WizardShell({
@@ -73,12 +73,14 @@ export function WizardShell({
   initialActNumber,
   initialClient,
   initialDoneBy,
+  initialServices = [],
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>(initialStep);
   const [docType, setDocType] = useState<DocType>(initialDocType);
   const [client, setClient] = useState<ContactRef | undefined>(initialClient);
   const [doneBy, setDoneBy] = useState<ContactRef | undefined>(initialDoneBy);
+  const [services, setServices] = useState<ServiceLine[]>(initialServices);
   const [error, setError] = useState<string | null>(null);
   const [pendingCopyGuid, setPendingCopyGuid] = useState(false);
   const [dateValid, setDateValid] = useState(true);
@@ -87,6 +89,9 @@ export function WizardShell({
     (() => Promise<DocumentSession | null>) | null
   >(null);
   const saveContactRef = useRef<
+    ((nextStep: WizardStep) => Promise<DocumentSession | null>) | null
+  >(null);
+  const saveServicesRef = useRef<
     ((nextStep: WizardStep) => Promise<DocumentSession | null>) | null
   >(null);
 
@@ -99,6 +104,7 @@ export function WizardShell({
     setDocType(session["doc-type"]);
     setClient(session.client);
     setDoneBy(session["done-by"]);
+    setServices(session.services);
   }
 
   function navigate(next: WizardStep) {
@@ -142,6 +148,21 @@ export function WizardShell({
         return;
       }
 
+      if (step === 5 && next > step) {
+        const save = saveServicesRef.current;
+        if (!save) {
+          setError("Не вдалося зберегти послуги");
+          return;
+        }
+        const saved = await save(next);
+        if (!saved) {
+          return;
+        }
+        applySession(saved);
+        router.refresh();
+        return;
+      }
+
       const res = await fetch(`/api/docs/${guid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -164,6 +185,7 @@ export function WizardShell({
     setDocType(session["doc-type"]);
     setClient(session.client);
     setDoneBy(session["done-by"]);
+    setServices(session.services);
     router.refresh();
   }
 
@@ -273,6 +295,15 @@ export function WizardShell({
               onSessionUpdated={handleSessionUpdated}
               onSaveRequest={(save) => {
                 saveContactRef.current = save;
+              }}
+            />
+          ) : displayStep === 5 ? (
+            <ServicesStep
+              guid={guid}
+              initialServices={services}
+              onSessionUpdated={handleSessionUpdated}
+              onSaveRequest={(save) => {
+                saveServicesRef.current = save;
               }}
             />
           ) : (

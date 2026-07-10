@@ -20,3 +20,13 @@ export function getDocsDir(override?: string): string {
 export function getContactsDir(override?: string): string {
   return path.join(getDataRoot(override), "contacts");
 }
+
+/** `{data-root}/jobs` — jobs / services catalog directory. */
+export function getJobsDir(override?: string): string {
+  return path.join(getDataRoot(override), "jobs");
+}
+
+/** `{data-root}/jobs/services.json` — reusable services catalog file. */
+export function getServicesCatalogPath(override?: string): string {
+  return path.join(getJobsDir(override), "services.json");
+}

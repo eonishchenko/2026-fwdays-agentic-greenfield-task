@@ -2,12 +2,22 @@
 
 | Field | Value |
 |-------|-------|
-| Last updated | 2026-07-10T20:53:00+03:00 |
-| Last action | Archived OpenSpec change `add-contacts`; synced delta specs to main |
-| Current focus | Next capability `services-catalog` (wizard step 5) |
-| Key decisions | Shared `ContactsStep` with role prop; `GET/PUT /api/contacts`; catalog then session snapshot on «Далі»; MVP inn = non-empty key (no checksum) |
+| Last updated | 2026-07-10T21:06:00+03:00 |
+| Last action | Archived OpenSpec change `add-services-catalog`; synced delta specs to main |
+| Current focus | Next capability: `template-fill` (wizard step 6) |
+| Key decisions | Catalog = single `{data-root}/jobs/services.json` array; upsert by `sign-name`; session `services[]` snapshot on «Далі»; `GET/PUT /api/jobs/services` |
 | Blockers / open questions | None |
-| Relevant paths | `lib/contacts/`, `app/api/contacts/`, `app/docs/[guid]/contacts-step.tsx`, `openspec/specs/contacts/` |
+| Relevant paths | `lib/services-catalog/`, `app/api/jobs/services/route.ts`, `app/docs/[guid]/services-step.tsx`, `openspec/specs/services-catalog/spec.md` |
+
+## Shipped: `add-services-catalog` (archived)
+
+- Main specs: new `services-catalog`; `wizard-shell` stub requirement updated for real step 5
+- Store: `lib/services-catalog` — `readServicesCatalog` / `writeServicesCatalog` / `upsertServicesIntoCatalog` at `{data-root}/jobs/services.json`
+- API: `GET/PUT /api/jobs/services`
+- UI: `ServicesStep` on wizard step 5 (catalog pick, multi-row lines, «додати ще»); stubs remain for 6–7
+- Covers FR-11–FR-12, NFR-10/13, TC-14
+- Archive: `openspec/changes/archive/2026-07-10-add-services-catalog/`
+- Next: `template-fill`
 
 ## Shipped: `add-contacts` (archived)
 
