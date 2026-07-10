@@ -13,17 +13,14 @@ import { ContactsStep } from "./contacts-step";
 import { DocumentNumberingStep } from "./document-numbering-step";
 import { DocumentTypeStep } from "./document-type-step";
 import { ServicesStep } from "./services-step";
+import { TemplateFillStep } from "./template-fill-step";
 
 const STEPS: WizardStep[] = [1, 2, 3, 4, 5, 6, 7];
 
 const STEP_STUBS: Record<
-  Exclude<WizardStep, 1 | 2 | 3 | 4 | 5>,
+  Exclude<WizardStep, 1 | 2 | 3 | 4 | 5 | 6>,
   { title: string; placeholder: string }
 > = {
-  6: {
-    title: "Крок 6 — Перегляд",
-    placeholder: "Тут з’явиться HTML-прев’ю заповненого шаблону.",
-  },
   7: {
     title: "Крок 7 — Фінальний перегляд",
     placeholder: "Тут з’являться PDF та дії редагування.",
@@ -45,6 +42,7 @@ function stepTitle(step: WizardStep, completed: boolean): string {
   if (step === 3) return "Крок 3 — Замовник";
   if (step === 4) return "Крок 4 — Виконавець";
   if (step === 5) return "Крок 5 — Послуги";
+  if (step === 6) return "Крок 6 — Перегляд";
   return STEP_STUBS[step].title;
 }
 
@@ -191,7 +189,11 @@ export function WizardShell({
 
   return (
     <div className="wizard-shell flex min-h-full flex-1 flex-col">
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-10">
+      <main
+        className={`mx-auto flex w-full flex-1 flex-col px-6 py-10 ${
+          displayStep === 6 && !completed ? "max-w-6xl" : "max-w-2xl"
+        }`}
+      >
         <header className="mb-8">
           <p
             className="text-sm font-medium uppercase tracking-wide"
@@ -306,6 +308,8 @@ export function WizardShell({
                 saveServicesRef.current = save;
               }}
             />
+          ) : displayStep === 6 ? (
+            <TemplateFillStep guid={guid} docType={docType} />
           ) : (
             <>
               <h2

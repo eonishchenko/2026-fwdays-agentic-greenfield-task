@@ -2,12 +2,23 @@
 
 | Field | Value |
 |-------|-------|
-| Last updated | 2026-07-10T21:06:00+03:00 |
-| Last action | Archived OpenSpec change `add-services-catalog`; synced delta specs to main |
-| Current focus | Next capability: `template-fill` (wizard step 6) |
-| Key decisions | Catalog = single `{data-root}/jobs/services.json` array; upsert by `sign-name`; session `services[]` snapshot on «Далі»; `GET/PUT /api/jobs/services` |
+| Last updated | 2026-07-10T21:19:00+03:00 |
+| Last action | Archived `add-template-fill` (synced main specs, moved change to archive) |
+| Current focus | Next: propose/implement `pdf-export` (wizard step 7) |
+| Key decisions | Fill via `data-prefilled` (+ FR class aliases); clone `.service-row`; `GET /api/docs/[guid]/preview?type=invoice\|act`; `price-total` = Σ(amount×price); keep `invoce.html` name (BC-07); `node-html-parser` for server fill |
 | Blockers / open questions | None |
-| Relevant paths | `lib/services-catalog/`, `app/api/jobs/services/route.ts`, `app/docs/[guid]/services-step.tsx`, `openspec/specs/services-catalog/spec.md` |
+| Relevant paths | `openspec/specs/template-fill/spec.md`, `openspec/specs/wizard-shell/spec.md`, `lib/template-fill/`, `app/api/docs/[guid]/preview/`, `app/docs/[guid]/template-fill-step.tsx`, `openspec/changes/archive/2026-07-10-add-template-fill/` |
+
+## Shipped: `add-template-fill` (archived)
+
+- Main specs: new `template-fill`; `wizard-shell` stub requirement updated for real step 6 (stub only step 7)
+- Engine: `lib/template-fill` — `fillInvoiceHtml` / `fillActHtml`, `computePriceTotal`, value map + row clone
+- API: `GET /api/docs/[guid]/preview?type=invoice|act` → filled `text/html` (400 if type not in `doc-type`)
+- UI: `TemplateFillStep` sandboxed iframes on wizard step 6; step 7 remains stub
+- Tests: TC-15, TC-16, TC-24, two-row clone, doc-type filter (`lib/template-fill/fill.test.ts`)
+- Covers FR-13–FR-14, NFR-07/10/12/13, BC-07, TC-15, TC-16, TC-24
+- Archive: `openspec/changes/archive/2026-07-10-add-template-fill/`
+- Next: `pdf-export`
 
 ## Shipped: `add-services-catalog` (archived)
 
@@ -17,7 +28,6 @@
 - UI: `ServicesStep` on wizard step 5 (catalog pick, multi-row lines, «додати ще»); stubs remain for 6–7
 - Covers FR-11–FR-12, NFR-10/13, TC-14
 - Archive: `openspec/changes/archive/2026-07-10-add-services-catalog/`
-- Next: `template-fill`
 
 ## Shipped: `add-contacts` (archived)
 
