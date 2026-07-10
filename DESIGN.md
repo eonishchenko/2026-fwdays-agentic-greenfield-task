@@ -10,6 +10,7 @@
 1. Провести користувача від порожнього сеансу до PDF без зайвих екранів.
 2. Зберегти візуальну вірність існуючих HTML-шаблонів A4.
 3. Зробити стан відновлюваним за `guid` (чернетка = посилання).
+4. Винести конвертацію суми й дати прописом у перевикористовувані helpers (FR-20, FR-21).
 
 ---
 
@@ -26,6 +27,9 @@ Next.js App Router  ──►  Document Service  ──►  FS JSON store
         │                      ├── jobs/services.json
         │                      └── {year}/doc_number.json
         ▼
+Helpers (amount→words, date→cursive)
+        │
+        ▼
 Template Engine (fill HTML) ──► PDF renderer (HTML→PDF)
         ▲
         └── templates/invoce.html | complete.html
@@ -34,6 +38,8 @@ Template Engine (fill HTML) ──► PDF renderer (HTML→PDF)
 **Стек (рішення):** Next.js (App Router) + TypeScript. Дані MVP — файлова система поруч із застосунком (або виділений data-root), без зовнішньої БД. Це відповідає BC-04 і спрощує демо/локальний запуск.
 
 **Чому не БД:** обсяг даних малий (контакти, послуги, сеанси); файли зручно інспектувати й бекапити; PRD уже фіксує шляхи JSON.
+
+**Naming (NFR-13):** ключі JSON і CSS-якорі — kebab-case (`full-name`, `mfo-bank`, `done-by-*`), окрім явно зафіксованого в PRD `done_amount` у шаблоні рахунка.
 
 ---
 
@@ -46,19 +52,19 @@ type DocType = "invoice_act" | "invoice" | "act";
 
 type ContactRef = {
   inn: string; // РНОКПП, ключ у contacts/
-  // snapshot полів на момент документа (щоб PDF не «поплив» після правки контакту)
-  fullName: string;
+  // snapshot на момент документа (щоб PDF не «поплив» після правки контакту)
+  "full-name": string;
   phone: string;
   acc: string;
   bank: string;
-  mfoBank: string;
+  "mfo-bank": string;
   addr: string;
 };
 
 type ServiceLine = {
-  short_name: string;
-  name: string;
-  done_amount: number;
+  "sign-name": string;
+  "service-name": string;
+  amount: number;
   price: number;
 };
 
@@ -67,11 +73,11 @@ type DocumentSession = {
   docType: DocType;
   currentStep: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   completed: boolean;
-  date: string; // ISO date
+  date: string; // ISO date у сеансі; у шаблон — DD.MM.YYYY
   invoiceNumber?: string; // "Р-0000001"
   actNumber?: string;     // "1"
   client?: ContactRef;
-  doneBy?: ContactRef;
+  "done-by"?: ContactRef;
   services: ServiceLine[];
   copiedFrom?: string;
   updatedAt: string;
@@ -80,13 +86,15 @@ type DocumentSession = {
 
 **Рішення:** у сеансі зберігаємо snapshot контактів, а не лише `inn`. Каталог `contacts/` — для вибору наступного разу; історичний PDF лишається стабільним.
 
+У TypeScript-коді зручніше camelCase (`fullName`, `mfoBank`, `doneBy`) з мапінгом на kebab-case при серіалізації в JSON/шаблони — або тримати kebab-case end-to-end. **Обрано:** kebab-case у JSON і шаблонах (як у PRD); у TS — типи з quoted keys або тонкий mapper.
+
 ### 3.2 Contact — `contacts/{РНОКПП}.json`
 
-Поля: `fullName`, `inn`, `phone`, `acc`, `bank`, `mfoBank`, `addr`.
+Поля: `full-name`, `inn`, `phone`, `acc`, `bank`, `mfo-bank`, `addr`.
 
 ### 3.3 Services catalog — `jobs/services.json`
 
-Масив послуг з полями `short_name`, `name`, і опційно останні `done_amount` / `price` як підказки (рядки документа все одно копіюються в сеанс).
+Масив послуг: `sign-name`, `service-name`, опційно останні `amount` / `price` як підказки (рядки документа копіюються в сеанс).
 
 ### 3.4 Numbering — `{year}/doc_number.json`
 
@@ -98,7 +106,7 @@ type DocNumberState = {
 };
 ```
 
-Номери видаються на кроці 2 (або при першому збереженні кроку 2) і не перегенеровуються при поверненні «Назад», якщо вже призначені в сеансі (NFR-04).
+Номери видаються на кроці 2 і не перегенеровуються при «Назад», якщо вже призначені в сеансі (NFR-04).
 
 ---
 
@@ -109,14 +117,14 @@ type DocNumberState = {
 | `/` | Старт: створити новий `guid` → redirect на `/docs/{guid}` |
 | `/docs/[guid]` | Єдиний URL флоу + перегляду |
 
-**Рішення:** один URL на сеанс (FR-02). Крок — поле `currentStep` у JSON, не окремі path-сегменти. Це спрощує «поділитися чернеткою» і відповідає PRD.
+**Рішення:** один URL на сеанс (FR-02). Крок — поле `currentStep` у JSON, не окремі path-сегменти.
 
 **Відновлення:**
 
-- `completed === false` → рендер кроку `currentStep` (або першого незаповненого, якщо дані кроку порожні).
-- `completed === true` → фінальний перегляд (крок 7 / view mode) з PDF і «Редагувати».
+- `completed === false` → рендер кроку `currentStep` (або першого незаповненого).
+- `completed === true` → фінальний перегляд з PDF і «Редагувати».
 
-**Копіювання (FR-04):** новий `guid`, deep-copy полів без `invoiceNumber` / `actNumber`; на кроці 2 — нова нумерація.
+**Копіювання (FR-04):** новий `guid`, deep-copy без `invoiceNumber` / `actNumber`; на кроці 2 — нова нумерація.
 
 ---
 
@@ -126,13 +134,13 @@ type DocNumberState = {
 |------|----|------------------------|
 | 1 | Radio: рахунок+акт / рахунок / акт; поле «guid для копіювання» | Обрано тип або успішне копіювання |
 | 2 | Date picker; read-only номери після генерації | Валідна дата |
-| 3 | Пошук контакту + форма створення замовника | Усі обов’язкові поля контакту, валідний РНОКПП |
+| 3 | Пошук контакту + форма створення замовника | Усі обов’язкові поля, валідний РНОКПП |
 | 4 | Те саме для виконавця | Як крок 3 |
-| 5 | Список каталогу, чекбокси/додавання рядків, «додати ще» | ≥ 1 послуга з кількістю й ціною |
+| 5 | Каталог, рядки (`sign-name`, `service-name`, `amount`, `price`), «додати ще» | ≥ 1 послуга з кількістю й ціною |
 | 6 | Preview HTML (iframe або sanitized HTML) | Шаблони успішно заповнені |
-| 7 | Read-only картки документів + PDF + Назад | — |
+| 7 | Read-only + PDF + Назад | — |
 
-Прогрес: горизонтальний ряд кружків 1…7; поточний — акцент; пройдені — заповнені; майбутні — контур (FR-18, NFR-02).
+Прогрес: кружки 1…7; поточний — акцент; пройдені — заповнені; майбутні — контур (FR-18, NFR-02).
 
 ---
 
@@ -140,43 +148,64 @@ type DocNumberState = {
 
 ### 6.1 Заповнення
 
-Шаблони вже містять CSS-класи-якорі (`client-fullName`, `doneBy-inn`, `amount-cursive`, …).  
-**Рішення:** заповнення через підстановку тексту в елементи за селектором класу (не Mustache-синтаксис у файлах). Зберігаємо pixel-вірність існуючих `templates/*.html`.
+**Рішення:** підстановка тексту в елементи за CSS-класами-якорями (не Mustache у файлах). Pixel-вірність `templates/*.html`.
 
-Префікси:
+Префікси / поля:
 
-- `client-*` — замовник  
-- `doneBy-*` — виконавець  
-- `amount-cursive` — сума прописом (uk, гривня)
+| Якір | Документ | Джерело |
+|------|----------|---------|
+| `client-*` | рахунок, акт | snapshot замовника (`full-name`, `inn`, …) |
+| `done-by-*` | рахунок, акт | snapshot виконавця |
+| `amount-cursive` | рахунок, акт | helper суми прописом |
+| `date` | рахунок | `DD.MM.YYYY` з дати сеансу |
+| `date-cursive` | рахунок | helper дати прописом |
+| `service-cursive` | рахунок | текст послуги (`service-name` / агрегат) |
+| `done_amount` | рахунок | кількість з рядка (`amount` у моделі → якір `done_amount`) |
+| `price` | рахунок | ціна рядка |
+| `price-total` | рахунок | Σ(`amount × price`) |
 
-Рядки таблиці послуг: клонувати row-шаблон або рендерити таблицю з даних сеансу (уточнити по розмітці `invoce.html` / `complete.html` під час імплементації).
+**Мапінг моделі → якір:** поле каталогу/сеансу `amount` у шаблоні рахунка пишеться в клас `done_amount` (ім’я якоря з PRD).
 
-### 6.2 PDF
+Рядки таблиці послуг: клонувати row-шаблон або рендерити з `services[]`.
 
-**Рішення:** серверний HTML→PDF (напр. Playwright/Puppeteer або `@react-pdf` лише якщо відмовимось від HTML-шаблонів). Для вірності A4 пріоритет — друк тих самих HTML з `@page { size: A4 }`.
+### 6.2 Helpers
+
+Окремий модуль (напр. `lib/helpers/`):
+
+```ts
+amountToCursive(8750) // "Вісім тисяч сімсот п'ятдесят гривень 00 копійок"
+dateToNumeric(d)      // "15.05.2021"
+dateToCursive(d)      // "15 травня 2021 р."
+```
+
+Використовуються на кроці 6 і при генерації PDF; покриті TC-22, TC-23.
+
+### 6.3 PDF
+
+**Рішення:** серверний HTML→PDF (Playwright/Puppeteer). Той самий заповнений HTML, що й preview.
 
 Ендпоінти (орієнтир):
 
 - `GET /api/docs/[guid]/pdf?type=invoice|act`
-- `GET /api/docs/[guid]` — JSON стану (опційно)
+- `GET /api/docs/[guid]` — JSON стану
 
 ---
 
 ## 7. Візуальний дизайн (продуктовий UI)
 
-Не плутати з виглядом PDF (там — чорно-білий Arial з шаблонів).
+Не плутати з виглядом PDF (чорно-білий Arial з шаблонів).
 
 | Токен | Рішення |
 |-------|---------|
-| Фон | Світло-сірий / off-white (`#F5F6F8`), без градієнтного «AI-look» |
-| Поверхні | Білі панелі кроку, тонка нейтральна межа (`#E2E4E8`) |
-| Текст | Темно-графітовий (`#1A1D21`), вторинний `#5C6370` |
-| Акцент | Приглушений синьо-сірий (`#3D5A80`) для прогресу й primary CTA — не фіолетовий |
-| Шрифт UI | Читабельний grotesque з чіткою кирилицею (напр. IBM Plex Sans / Source Sans 3); у PDF лишається Arial з шаблону |
-| Кнопки | Прямокутні з невеликим radius (4–6px), не pills |
-| Прогрес | Кружки з номером кроку; без іконок-емодзі |
+| Фон | Світло-сірий / off-white (`#F5F6F8`) |
+| Поверхні | Білі панелі кроку, межа `#E2E4E8` |
+| Текст | `#1A1D21`, вторинний `#5C6370` |
+| Акцент | Приглушений синьо-сірий `#3D5A80` |
+| Шрифт UI | IBM Plex Sans / Source Sans 3; у PDF — Arial з шаблону |
+| Кнопки | Radius 4–6px, не pills |
+| Прогрес | Кружки з номером кроку |
 
-Атмосфера: канцелярія / фінанси, не лендінг. Один стовпчик форми, preview документа — поруч на широких екранах (крок 6–7), знизу на мобільному.
+Атмосфера: канцелярія / фінанси. Форма в один стовпчик; preview — поруч на wide, знизу на mobile (кроки 6–7).
 
 ---
 
@@ -197,13 +226,23 @@ on confirm step 2:
   write state + session
 ```
 
-### 8.2 Сума прописом
+### 8.2 Сума й підсумок
 
-`total = Σ(done_amount * price)` → український пропис гривень і копійок у форматі, сумісному з рядком шаблону («Всього на суму: …»).
+```
+price-total = Σ(line.amount * line.price)
+amount-cursive = amountToCursive(price-total)
+```
 
-### 8.3 «Останній незаповнений крок»
+### 8.3 Дата
 
-Перший крок, для якого обов’язкові дані відсутні; якщо всі заповнені й `completed` — крок 7.
+```
+date         = format DD.MM.YYYY
+date-cursive = dateToCursive(session.date)
+```
+
+### 8.4 «Останній незаповнений крок»
+
+Перший крок без обов’язкових даних; якщо все заповнено й `completed` — крок 7.
 
 ---
 
@@ -226,22 +265,24 @@ on confirm step 2:
 
 | Ризик | Пом’якшення |
 |-------|-------------|
-| Гонка при паралельній видачі номерів | Файловий lock / атомарний write для `doc_number.json` |
+| Гонка при видачі номерів | Файловий lock / атомарний write для `doc_number.json` |
 | Зміна контакту ламає старі PDF | Snapshot у сеансі |
 | Розбіжність preview і PDF | Той самий HTML pipeline |
-| Вим’я `invoce.html` | Не перейменовувати (BC-07); alias у коді `invoiceTemplatePath` |
-| Security-through-obscurity `guid` | Прийнятно для MVP (NFR-11); UUID v4 для `guid` |
+| `amount` (модель) vs `done_amount` (якір) | Явний мапінг у template engine |
+| Вим’я `invoce.html` | Не перейменовувати (BC-07); alias `invoiceTemplatePath` |
+| Security-through-obscurity `guid` | MVP OK (NFR-11); UUID v4 |
 
 ---
 
 ## 11. Порядок імплементації
 
-1. FS store + модель сеансу + `POST/GET/PATCH` docs  
-2. Wizard shell (кружки, назад/далі, persist step)  
-3. Кроки 1–5 (тип, номери, контакти, послуги)  
-4. Template fill + preview  
-5. PDF export  
-6. Copy-from-guid + resume rules  
-7. Polish UI / валідація / негативні TC  
+1. FS store + модель сеансу (kebab-case) + `POST/GET/PATCH` docs  
+2. Helpers: `amountToCursive`, `dateToCursive` (+ unit tests TC-22/23)  
+3. Wizard shell (кружки, назад/далі, persist step)  
+4. Кроки 1–5 (тип, номери, контакти, послуги)  
+5. Template fill (`client-*`, `done-by-*`, invoice fields) + preview  
+6. PDF export  
+7. Copy-from-guid + resume rules  
+8. Polish UI / валідація / негативні TC  
 
-Checker: прогін TC-01…TC-24 з [requirements.md](./docs/requirements.md).
+Checker: прогін TC-01…TC-26 з [requirements.md](./docs/requirements.md).
