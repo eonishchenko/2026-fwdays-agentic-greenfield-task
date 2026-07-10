@@ -1,7 +1,7 @@
 # DESIGN.md
 
 Дизайн-рішення для генератора рахунків/актів.  
-Вимоги: [docs/requirements.md](./docs/requirements.md) · наратив: [docs/product-brief.md](./docs/product-brief.md) · сире ТЗ: [docs/prd_draft.md](./docs/prd_draft.md).
+Вимоги: [docs/requirements.md](./docs/requirements.md) · наратив: [docs/product-brief.md](./docs/product-brief.md) · сире ТЗ: [docs/prd-draft.md](docs/prd-draft.md).
 
 ---
 

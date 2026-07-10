@@ -1,6 +1,6 @@
 # Requirements
 
-Джерело: [prd_draft.md](./prd_draft.md).  
+Джерело: [prd-draft.md](prd-draft.md).  
 Продукт: покроковий генератор рахунків і актів з шаблонів, збереженням контактів/послуг і експортом у PDF/JSON.
 
 ---
@@ -135,7 +135,7 @@
 ## Трасування
 
 ```
-prd_draft.md → FR/NFR/BC → TC
+prd-draft.md → FR/NFR/BC → TC
 ```
 
 | PRD-блок | Вимоги |
