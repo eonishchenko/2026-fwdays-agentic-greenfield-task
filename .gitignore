@@ -74,3 +74,4 @@ next-env.d.ts
 # document session JSON (DATA_ROOT default ./data)
 /data/docs/*.json
 !/data/docs/.gitkeep
+/data/*/doc_number.json

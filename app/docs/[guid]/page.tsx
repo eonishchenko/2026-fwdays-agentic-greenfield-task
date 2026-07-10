@@ -67,6 +67,9 @@ export default async function DocumentSessionPage({ params }: PageProps) {
       completed={session.completed}
       initialDocType={session["doc-type"]}
       initialCopiedFrom={session["copied-from"]}
+      initialDate={session.date}
+      initialInvoiceNumber={session["invoice-number"]}
+      initialActNumber={session["act-number"]}
     />
   );
 }

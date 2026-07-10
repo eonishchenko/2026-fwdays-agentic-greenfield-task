@@ -1,24 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import type {
   DocType,
   DocumentSession,
   WizardStep,
 } from "@/lib/document-session/types";
+import { DocumentNumberingStep } from "./document-numbering-step";
 import { DocumentTypeStep } from "./document-type-step";
 
 const STEPS: WizardStep[] = [1, 2, 3, 4, 5, 6, 7];
 
 const STEP_STUBS: Record<
-  Exclude<WizardStep, 1>,
+  Exclude<WizardStep, 1 | 2>,
   { title: string; placeholder: string }
 > = {
-  2: {
-    title: "Крок 2 — Дата та номери",
-    placeholder: "Тут з’являться дата документа та згенеровані номери.",
-  },
   3: {
     title: "Крок 3 — Замовник",
     placeholder: "Тут з’являться пошук і форма контакту замовника.",
@@ -52,6 +49,7 @@ function progressState(step: WizardStep, current: WizardStep): ProgressState {
 function stepTitle(step: WizardStep, completed: boolean): string {
   if (completed) return "Фінальний перегляд";
   if (step === 1) return "Крок 1 — Тип документа";
+  if (step === 2) return "Крок 2 — Дата та номери";
   return STEP_STUBS[step].title;
 }
 
@@ -61,6 +59,9 @@ type Props = {
   completed: boolean;
   initialDocType: DocType;
   initialCopiedFrom?: string;
+  initialDate: string;
+  initialInvoiceNumber?: string;
+  initialActNumber?: string;
 };
 
 export function WizardShell({
@@ -69,12 +70,20 @@ export function WizardShell({
   completed,
   initialDocType,
   initialCopiedFrom,
+  initialDate,
+  initialInvoiceNumber,
+  initialActNumber,
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>(initialStep);
+  const [docType, setDocType] = useState<DocType>(initialDocType);
   const [error, setError] = useState<string | null>(null);
   const [pendingCopyGuid, setPendingCopyGuid] = useState(false);
+  const [dateValid, setDateValid] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const issueNumbersRef = useRef<
+    (() => Promise<DocumentSession | null>) | null
+  >(null);
 
   const displayStep: WizardStep = completed ? 7 : step;
   const canGoBack = !completed && step > 1;
@@ -88,8 +97,24 @@ export function WizardShell({
       );
       return;
     }
+    if (step === 2 && next > step && !dateValid) {
+      setError("Вкажіть коректну дату документа");
+      return;
+    }
     setError(null);
     startTransition(async () => {
+      if (step === 2 && next > step) {
+        const issue = issueNumbersRef.current;
+        if (!issue) {
+          setError("Не вдалося видати номери");
+          return;
+        }
+        const issued = await issue();
+        if (!issued) {
+          return;
+        }
+      }
+
       const res = await fetch(`/api/docs/${guid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -104,11 +129,13 @@ export function WizardShell({
       }
       const session = (await res.json()) as DocumentSession;
       setStep(session["current-step"]);
+      setDocType(session["doc-type"]);
       router.refresh();
     });
   }
 
-  function handleSessionUpdated(_session: DocumentSession) {
+  function handleSessionUpdated(session: DocumentSession) {
+    setDocType(session["doc-type"]);
     router.refresh();
   }
 
@@ -184,6 +211,19 @@ export function WizardShell({
               initialCopiedFrom={initialCopiedFrom}
               onSessionUpdated={handleSessionUpdated}
               onCopyFieldChange={setPendingCopyGuid}
+            />
+          ) : displayStep === 2 ? (
+            <DocumentNumberingStep
+              guid={guid}
+              docType={docType}
+              initialDate={initialDate}
+              initialInvoiceNumber={initialInvoiceNumber}
+              initialActNumber={initialActNumber}
+              onSessionUpdated={handleSessionUpdated}
+              onDateValidityChange={setDateValid}
+              onIssueRequest={(issue) => {
+                issueNumbersRef.current = issue;
+              }}
             />
           ) : (
             <>
