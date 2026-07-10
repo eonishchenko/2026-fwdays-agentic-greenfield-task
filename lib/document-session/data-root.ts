@@ -1,0 +1,17 @@
+import path from "node:path";
+
+const DEFAULT_DATA_ROOT = "./data";
+
+/**
+ * Resolves the configurable data root (env `DATA_ROOT`, default `./data`).
+ * Relative paths are resolved against `process.cwd()` (NFR-12).
+ */
+export function getDataRoot(override?: string): string {
+  const raw = override ?? process.env.DATA_ROOT ?? DEFAULT_DATA_ROOT;
+  return path.isAbsolute(raw) ? raw : path.resolve(process.cwd(), raw);
+}
+
+/** `{data-root}/docs` — session JSON directory. */
+export function getDocsDir(override?: string): string {
+  return path.join(getDataRoot(override), "docs");
+}
