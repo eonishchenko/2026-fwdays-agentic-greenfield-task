@@ -2,12 +2,24 @@
 
 | Field | Value |
 |-------|-------|
-| Last updated | 2026-07-10T21:19:00+03:00 |
-| Last action | Archived `add-template-fill` (synced main specs, moved change to archive) |
-| Current focus | Next: propose/implement `pdf-export` (wizard step 7) |
-| Key decisions | Fill via `data-prefilled` (+ FR class aliases); clone `.service-row`; `GET /api/docs/[guid]/preview?type=invoice\|act`; `price-total` = Σ(amount×price); keep `invoce.html` name (BC-07); `node-html-parser` for server fill |
+| Last updated | 2026-07-10T21:32:00+03:00 |
+| Last action | Archived `add-pdf-export`; synced delta specs to main |
+| Current focus | MVP vertical closed — no active OpenSpec changes |
+| Key decisions | Playwright Chromium HTML→PDF; reuse `template-fill` fill; `GET …/pdf?type=`; «Далі» from 6 sets `completed: true`; Edit/Back → step 6 + `completed: false` |
 | Blockers / open questions | None |
-| Relevant paths | `openspec/specs/template-fill/spec.md`, `openspec/specs/wizard-shell/spec.md`, `lib/template-fill/`, `app/api/docs/[guid]/preview/`, `app/docs/[guid]/template-fill-step.tsx`, `openspec/changes/archive/2026-07-10-add-template-fill/` |
+| Relevant paths | `lib/pdf-export/`, `app/api/docs/[guid]/pdf/`, `app/docs/[guid]/pdf-export-step.tsx`, `openspec/specs/pdf-export/` |
+
+## Shipped: `add-pdf-export` (archived)
+
+- Main specs: new `pdf-export`; `document-session` completion/Edit requirements; `wizard-shell` stub requirement updated for real step 7 (no stubs left)
+- Engine: `lib/pdf-export` — browser singleton, `renderHtmlToPdf`, `buildPdf` / invoice+act helpers
+- API: `GET /api/docs/[guid]/pdf?type=invoice|act` → `application/pdf` + Content-Disposition; 404/400/5xx as specified
+- UI: `PdfExportStep` on wizard step 7 + completed final review; PDF download per `doc-type`; «Назад» / «Редагувати» → step 6
+- Session: step 6 «Далі» → `current-step: 7`, `completed: true`
+- Deps: `playwright`; install Chromium via `npm run playwright:install` (or `npx playwright install chromium`)
+- Tests: `lib/pdf-export/build.test.ts` (PDF magic bytes + doc-type guard); full suite 50 passed
+- Covers FR-15–FR-16, NFR-07/10, BC-12, TC-03, TC-17–TC-19
+- Archive: `openspec/changes/archive/2026-07-10-add-pdf-export/`
 
 ## Shipped: `add-template-fill` (archived)
 

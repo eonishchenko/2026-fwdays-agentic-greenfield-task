@@ -12,20 +12,11 @@ import type {
 import { ContactsStep } from "./contacts-step";
 import { DocumentNumberingStep } from "./document-numbering-step";
 import { DocumentTypeStep } from "./document-type-step";
+import { PdfExportStep } from "./pdf-export-step";
 import { ServicesStep } from "./services-step";
 import { TemplateFillStep } from "./template-fill-step";
 
 const STEPS: WizardStep[] = [1, 2, 3, 4, 5, 6, 7];
-
-const STEP_STUBS: Record<
-  Exclude<WizardStep, 1 | 2 | 3 | 4 | 5 | 6>,
-  { title: string; placeholder: string }
-> = {
-  7: {
-    title: "Крок 7 — Фінальний перегляд",
-    placeholder: "Тут з’являться PDF та дії редагування.",
-  },
-};
 
 type ProgressState = "past" | "current" | "future";
 
@@ -43,7 +34,7 @@ function stepTitle(step: WizardStep, completed: boolean): string {
   if (step === 4) return "Крок 4 — Виконавець";
   if (step === 5) return "Крок 5 — Послуги";
   if (step === 6) return "Крок 6 — Перегляд";
-  return STEP_STUBS[step].title;
+  return "Крок 7 — Фінальний перегляд";
 }
 
 type Props = {
@@ -63,7 +54,7 @@ type Props = {
 export function WizardShell({
   guid,
   initialStep,
-  completed,
+  completed: initialCompleted,
   initialDocType,
   initialCopiedFrom,
   initialDate,
@@ -75,6 +66,7 @@ export function WizardShell({
 }: Props) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>(initialStep);
+  const [completed, setCompleted] = useState(initialCompleted);
   const [docType, setDocType] = useState<DocType>(initialDocType);
   const [client, setClient] = useState<ContactRef | undefined>(initialClient);
   const [doneBy, setDoneBy] = useState<ContactRef | undefined>(initialDoneBy);
@@ -96,9 +88,11 @@ export function WizardShell({
   const displayStep: WizardStep = completed ? 7 : step;
   const canGoBack = !completed && step > 1;
   const canGoNext = !completed && step < 7;
+  const wideLayout = displayStep === 6 || displayStep === 7;
 
   function applySession(session: DocumentSession) {
     setStep(session["current-step"]);
+    setCompleted(session.completed);
     setDocType(session["doc-type"]);
     setClient(session.client);
     setDoneBy(session["done-by"]);
@@ -161,16 +155,48 @@ export function WizardShell({
         return;
       }
 
+      const patch: Record<string, unknown> = { "current-step": next };
+      if (step === 6 && next === 7) {
+        patch.completed = true;
+      }
+      if (step === 7 && next < 7) {
+        patch.completed = false;
+      }
+
       const res = await fetch(`/api/docs/${guid}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ "current-step": next }),
+        body: JSON.stringify(patch),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
         setError(data?.error ?? `Не вдалося зберегти крок (${res.status})`);
+        return;
+      }
+      const session = (await res.json()) as DocumentSession;
+      applySession(session);
+      router.refresh();
+    });
+  }
+
+  function reopenForEdit() {
+    if (isPending) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await fetch(`/api/docs/${guid}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: false, "current-step": 6 }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(
+          data?.error ?? `Не вдалося відкрити для редагування (${res.status})`,
+        );
         return;
       }
       const session = (await res.json()) as DocumentSession;
@@ -191,7 +217,7 @@ export function WizardShell({
     <div className="wizard-shell flex min-h-full flex-1 flex-col">
       <main
         className={`mx-auto flex w-full flex-1 flex-col px-6 py-10 ${
-          displayStep === 6 && !completed ? "max-w-6xl" : "max-w-2xl"
+          wideLayout ? "max-w-6xl" : "max-w-2xl"
         }`}
       >
         <header className="mb-8">
@@ -243,19 +269,13 @@ export function WizardShell({
           }}
           aria-live="polite"
         >
-          {completed ? (
-            <>
-              <h2
-                className="text-lg font-semibold"
-                style={{ color: "var(--wizard-text)" }}
-              >
-                Фінальний перегляд
-              </h2>
-              <p className="mt-2 text-sm" style={{ color: "var(--wizard-muted)" }}>
-                Сеанс завершено. PDF та «Редагувати» з’являться з пізнішими
-                можливостями.
-              </p>
-            </>
+          {displayStep === 7 ? (
+            <PdfExportStep
+              guid={guid}
+              docType={docType}
+              isPending={isPending}
+              onReopenEdit={reopenForEdit}
+            />
           ) : displayStep === 1 ? (
             <DocumentTypeStep
               guid={guid}
@@ -308,20 +328,8 @@ export function WizardShell({
                 saveServicesRef.current = save;
               }}
             />
-          ) : displayStep === 6 ? (
-            <TemplateFillStep guid={guid} docType={docType} />
           ) : (
-            <>
-              <h2
-                className="text-lg font-semibold"
-                style={{ color: "var(--wizard-text)" }}
-              >
-                {STEP_STUBS[displayStep].title}
-              </h2>
-              <p className="mt-2 text-sm" style={{ color: "var(--wizard-muted)" }}>
-                {STEP_STUBS[displayStep].placeholder}
-              </p>
-            </>
+            <TemplateFillStep guid={guid} docType={docType} />
           )}
         </section>
 
